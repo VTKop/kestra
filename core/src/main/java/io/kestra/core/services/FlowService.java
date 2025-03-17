@@ -39,8 +39,8 @@ import java.util.stream.StreamSupport;
 @Slf4j
 public class FlowService {
     private static final ObjectMapper NON_DEFAULT_OBJECT_MAPPER = JacksonMapper.ofJson()
-        .copy()
-        .setSerializationInclusion(JsonInclude.Include.NON_DEFAULT);
+            .copy()
+            .setSerializationInclusion(JsonInclude.Include.NON_DEFAULT);
 
     @Inject
     Optional<FlowRepositoryInterface> flowRepository;
@@ -64,28 +64,32 @@ public class FlowService {
         }
 
         FlowWithSource withTenant = yamlParser.parse(source, Flow.class).toBuilder()
-            .tenantId(tenantId)
-            .build()
-            .withSource(source);
+                .tenantId(tenantId)
+                .build()
+                .withSource(source);
 
         FlowRepositoryInterface flowRepository = this.flowRepository.get();
         Optional<FlowWithSource> flowWithSource = flowRepository
-            .findByIdWithSource(withTenant.getTenantId(), withTenant.getNamespace(), withTenant.getId(), Optional.empty(), true);
+                .findByIdWithSource(withTenant.getTenantId(), withTenant.getNamespace(), withTenant.getId(),
+                        Optional.empty(), true);
         if (dryRun) {
             return flowWithSource
-                .map(previous -> {
-                    if (previous.equals(withTenant, source) && !previous.isDeleted()) {
-                        return previous;
-                    } else {
-                        return FlowWithSource.of(withTenant.toBuilder().revision(previous.getRevision() + 1).build(), source);
-                    }
-                })
-                .orElseGet(() -> FlowWithSource.of(withTenant, source).toBuilder().revision(1).build());
+                    .map(previous -> {
+                        if (previous.equals(withTenant, source) && !previous.isDeleted()) {
+                            return previous;
+                        } else {
+                            return FlowWithSource
+                                    .of(withTenant.toBuilder().revision(previous.getRevision() + 1).build(), source);
+                        }
+                    })
+                    .orElseGet(() -> FlowWithSource.of(withTenant, source).toBuilder().revision(1).build());
         }
 
         return flowWithSource
-            .map(previous -> flowRepository.update(withTenant, previous, source, pluginDefaultService.injectDefaults(withTenant)))
-            .orElseGet(() -> flowRepository.create(withTenant, source, pluginDefaultService.injectDefaults(withTenant)));
+                .map(previous -> flowRepository.update(withTenant, previous, source,
+                        pluginDefaultService.injectDefaults(withTenant)))
+                .orElseGet(() -> flowRepository.create(withTenant, source,
+                        pluginDefaultService.injectDefaults(withTenant)));
     }
 
     public List<FlowWithSource> findByNamespaceWithSource(String tenantId, String namespace) {
@@ -130,7 +134,7 @@ public class FlowService {
 
     /**
      * @deprecated as we have no more usaage inside
-     * maybe be kept if we found something to verify
+     *             maybe be kept if we found something to verify
      */
     @Deprecated
     public List<String> warnings(Flow flow) {
@@ -146,9 +150,10 @@ public class FlowService {
     public List<Relocation> relocations(String flowSource) {
         try {
             Map<String, Class<?>> aliases = pluginRegistry.plugins().stream()
-                .flatMap(plugin -> plugin.getAliases().values().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            Map<String, Object> stringObjectMap = JacksonMapper.ofYaml().readValue(flowSource, JacksonMapper.MAP_TYPE_REFERENCE);
+                    .flatMap(plugin -> plugin.getAliases().values().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            Map<String, Object> stringObjectMap = JacksonMapper.ofYaml().readValue(flowSource,
+                    JacksonMapper.MAP_TYPE_REFERENCE);
             return relocations(aliases, stringObjectMap);
         } catch (JsonProcessingException e) {
             // silent failure (we don't compromise the app / response for warnings)
@@ -156,12 +161,21 @@ public class FlowService {
         }
     }
 
+    public List<String> missingDefaults(Flow flow) {
+        return flow.getInputs()
+                .stream()
+                .filter(input -> input.getDefaults() == null)
+                .map(input -> "Input '" + input.getId()
+                        + "' is missing a default value")
+                .toList();
+    }
+
     // check if subflow is present in given namespace
     public void checkValidSubflows(Flow flow, String tenantId) {
         List<io.kestra.plugin.core.flow.Subflow> subFlows = ListUtils.emptyOnNull(flow.getTasks()).stream()
-            .filter(io.kestra.plugin.core.flow.Subflow.class::isInstance)
-            .map(io.kestra.plugin.core.flow.Subflow.class::cast)
-            .toList();
+                .filter(io.kestra.plugin.core.flow.Subflow.class::isInstance)
+                .map(io.kestra.plugin.core.flow.Subflow.class::cast)
+                .toList();
 
         Set<ConstraintViolation<?>> violations = new HashSet<>();
 
@@ -176,20 +190,20 @@ public class FlowService {
 
             if (optional.isEmpty()) {
                 violations.add(ManualConstraintViolation.of(
-                    "The subflow '" + subflow.getFlowId() + "' not found in namespace '" + subflow.getNamespace() + "'.",
-                    flow,
-                    Flow.class,
-                    "flow.tasks",
-                    flow.getNamespace()
-                ));
+                        "The subflow '" + subflow.getFlowId() + "' not found in namespace '" + subflow.getNamespace()
+                                + "'.",
+                        flow,
+                        Flow.class,
+                        "flow.tasks",
+                        flow.getNamespace()));
             } else if (optional.get().isDisabled()) {
                 violations.add(ManualConstraintViolation.of(
-                    "The subflow '" + subflow.getFlowId() + "' is disabled in namespace '" + subflow.getNamespace() + "'.",
-                    flow,
-                    Flow.class,
-                    "flow.tasks",
-                    flow.getNamespace()
-                ));
+                        "The subflow '" + subflow.getFlowId() + "' is disabled in namespace '" + subflow.getNamespace()
+                                + "'.",
+                        flow,
+                        Flow.class,
+                        "flow.tasks",
+                        flow.getNamespace()));
             }
         });
 
@@ -198,7 +212,8 @@ public class FlowService {
         }
     }
 
-    public record Relocation(String from, String to) {}
+    public record Relocation(String from, String to) {
+    }
 
     @SuppressWarnings("unchecked")
     private List<Relocation> relocations(Map<String, Class<?>> aliases, Map<String, Object> stringObjectMap) {
@@ -226,48 +241,52 @@ public class FlowService {
         return relocations;
     }
 
-
     private Stream<String> deprecationTraversal(String prefix, Object object) {
-        if (object == null || ClassUtils.isPrimitiveOrWrapper(object.getClass()) || String.class.equals(object.getClass())) {
+        if (object == null || ClassUtils.isPrimitiveOrWrapper(object.getClass())
+                || String.class.equals(object.getClass())) {
             return Stream.empty();
         }
 
         return Stream.concat(
-            object.getClass().isAnnotationPresent(Deprecated.class) ? Stream.of(prefix) : Stream.empty(),
-            allGetters(object.getClass())
-                .flatMap(method -> {
-                    try {
-                        Object fieldValue = method.invoke(object);
+                object.getClass().isAnnotationPresent(Deprecated.class) ? Stream.of(prefix) : Stream.empty(),
+                allGetters(object.getClass())
+                        .flatMap(method -> {
+                            try {
+                                Object fieldValue = method.invoke(object);
 
-                        if (fieldValue instanceof Iterable<?> iterableValue) {
-                            fieldValue = StreamSupport.stream(iterableValue.spliterator(), false).toArray(Object[]::new);
-                        }
+                                if (fieldValue instanceof Iterable<?> iterableValue) {
+                                    fieldValue = StreamSupport.stream(iterableValue.spliterator(), false)
+                                            .toArray(Object[]::new);
+                                }
 
-                        String fieldName = method.getName().substring(3, 4).toLowerCase() + method.getName().substring(4);
-                        Stream<String> additionalDeprecationPaths = Stream.empty();
-                        if (fieldValue instanceof Object[] arrayValue) {
-                            additionalDeprecationPaths = IntStream.range(0, arrayValue.length).boxed().flatMap(i -> deprecationTraversal(fieldName + "[%d]".formatted(i), arrayValue[i]));
-                        }
+                                String fieldName = method.getName().substring(3, 4).toLowerCase()
+                                        + method.getName().substring(4);
+                                Stream<String> additionalDeprecationPaths = Stream.empty();
+                                if (fieldValue instanceof Object[] arrayValue) {
+                                    additionalDeprecationPaths = IntStream.range(0, arrayValue.length).boxed().flatMap(
+                                            i -> deprecationTraversal(fieldName + "[%d]".formatted(i), arrayValue[i]));
+                                }
 
-                        return Stream.concat(
-                            method.isAnnotationPresent(Deprecated.class) && fieldValue != null ? Stream.of(prefix.isEmpty() ? fieldName : prefix + "." + fieldName) : Stream.empty(),
-                            additionalDeprecationPaths
-                        );
-                    } catch (IllegalAccessException | InvocationTargetException e) {
-                        // silent failure (we don't compromise the app / response for warnings)
-                    }
+                                return Stream.concat(
+                                        method.isAnnotationPresent(Deprecated.class) && fieldValue != null
+                                                ? Stream.of(prefix.isEmpty() ? fieldName : prefix + "." + fieldName)
+                                                : Stream.empty(),
+                                        additionalDeprecationPaths);
+                            } catch (IllegalAccessException | InvocationTargetException e) {
+                                // silent failure (we don't compromise the app / response for warnings)
+                            }
 
-                    return Stream.empty();
-                })
-        );
+                            return Stream.empty();
+                        }));
     }
 
     private Stream<Method> allGetters(Class<?> clazz) {
         return Arrays.stream(clazz.getMethods())
-            .filter(m -> !m.getDeclaringClass().equals(Object.class))
-            .filter(method -> method.getName().startsWith("get") && method.getName().length() > 3 && method.getParameterCount() == 0)
-            .filter(method -> !method.getReturnType().equals(Void.TYPE))
-            .filter(method -> !Modifier.isStatic(method.getModifiers()));
+                .filter(m -> !m.getDeclaringClass().equals(Object.class))
+                .filter(method -> method.getName().startsWith("get") && method.getName().length() > 3
+                        && method.getParameterCount() == 0)
+                .filter(method -> !method.getReturnType().equals(Void.TYPE))
+                .filter(method -> !Modifier.isStatic(method.getModifiers()));
     }
 
     public Collection<FlowWithSource> keepLastVersion(List<FlowWithSource> flows) {
@@ -302,22 +321,21 @@ public class FlowService {
 
     public static List<AbstractTrigger> findRemovedTrigger(Flow flow, Flow previous) {
         return ListUtils.emptyOnNull(previous.getTriggers())
-            .stream()
-            .filter(p -> ListUtils.emptyOnNull(flow.getTriggers())
                 .stream()
-                .noneMatch(c -> c.getId().equals(p.getId()))
-            )
-            .toList();
+                .filter(p -> ListUtils.emptyOnNull(flow.getTriggers())
+                        .stream()
+                        .noneMatch(c -> c.getId().equals(p.getId())))
+                .toList();
     }
 
     public static List<AbstractTrigger> findUpdatedTrigger(Flow flow, Flow previous) {
         return ListUtils.emptyOnNull(flow.getTriggers())
-            .stream()
-            .filter(oldTrigger -> ListUtils.emptyOnNull(previous.getTriggers())
                 .stream()
-                .anyMatch(trigger -> trigger.getId().equals(oldTrigger.getId()) && !EqualsBuilder.reflectionEquals(trigger, oldTrigger))
-            )
-            .toList();
+                .filter(oldTrigger -> ListUtils.emptyOnNull(previous.getTriggers())
+                        .stream()
+                        .anyMatch(trigger -> trigger.getId().equals(oldTrigger.getId())
+                                && !EqualsBuilder.reflectionEquals(trigger, oldTrigger)))
+                .toList();
     }
 
     public static String cleanupSource(String source) {
@@ -344,9 +362,10 @@ public class FlowService {
             String source = JacksonMapper.ofYaml().writeValueAsString(map);
 
             // remove the revision from the generated source
-            return source.replaceFirst("(?m)^revision: \\d+\n?","");
+            return source.replaceFirst("(?m)^revision: \\d+\n?", "");
         } catch (JsonProcessingException e) {
-            log.warn("Unable to convert flow json '{}' '{}'({})", flow.getNamespace(), flow.getId(), flow.getRevision(), e);
+            log.warn("Unable to convert flow json '{}' '{}'({})", flow.getNamespace(), flow.getId(), flow.getRevision(),
+                    e);
             return null;
         }
     }
@@ -370,13 +389,17 @@ public class FlowService {
     }
 
     /**
-     * Dirty hack but only concern previous flow with no source code in org.yaml.snakeyaml.emitter.Emitter:
+     * Dirty hack but only concern previous flow with no source code in
+     * org.yaml.snakeyaml.emitter.Emitter:
+     * 
      * <pre>
      * if (previousSpace) {
-     *   spaceBreak = true;
+     *     spaceBreak = true;
      * }
      * </pre>
-     * This control will detect ` \n` as a no valid entry on a string and will break the multiline to transform in single line
+     * 
+     * This control will detect ` \n` as a no valid entry on a string and will break
+     * the multiline to transform in single line
      *
      * @param object the object to fix
      * @return the modified object
@@ -384,26 +407,24 @@ public class FlowService {
     private static Object fixSnakeYaml(Object object) {
         if (object instanceof Map<?, ?> mapValue) {
             return mapValue
-                .entrySet()
-                .stream()
-                .map(entry -> new AbstractMap.SimpleEntry<>(
-                    fixSnakeYaml(entry.getKey()),
-                    fixSnakeYaml(entry.getValue())
-                ))
-                .filter(entry -> entry.getValue() != null)
-                .collect(Collectors.toMap(
-                    Map.Entry::getKey,
-                    Map.Entry::getValue,
-                    (u, v) -> {
-                        throw new IllegalStateException(String.format("Duplicate key %s", u));
-                    },
-                    LinkedHashMap::new
-                ));
+                    .entrySet()
+                    .stream()
+                    .map(entry -> new AbstractMap.SimpleEntry<>(
+                            fixSnakeYaml(entry.getKey()),
+                            fixSnakeYaml(entry.getValue())))
+                    .filter(entry -> entry.getValue() != null)
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            Map.Entry::getValue,
+                            (u, v) -> {
+                                throw new IllegalStateException(String.format("Duplicate key %s", u));
+                            },
+                            LinkedHashMap::new));
         } else if (object instanceof Collection<?> collectionValue) {
             return collectionValue
-                .stream()
-                .map(FlowService::fixSnakeYaml)
-                .toList();
+                    .stream()
+                    .map(FlowService::fixSnakeYaml)
+                    .toList();
         } else if (object instanceof String item) {
             if (item.contains("\n")) {
                 return item.replaceAll("\\s+\\n", "\\\n");
@@ -414,15 +435,18 @@ public class FlowService {
     }
 
     /**
-     * Return true if the namespace is allowed from the namespace denoted by 'fromTenant' and 'fromNamespace'.
-     * As namespace restriction is an EE feature, this will always return true in OSS.
+     * Return true if the namespace is allowed from the namespace denoted by
+     * 'fromTenant' and 'fromNamespace'.
+     * As namespace restriction is an EE feature, this will always return true in
+     * OSS.
      */
     public boolean isAllowedNamespace(String tenant, String namespace, String fromTenant, String fromNamespace) {
         return true;
     }
 
     /**
-     * Check that the namespace is allowed from the namespace denoted by 'fromTenant' and 'fromNamespace'.
+     * Check that the namespace is allowed from the namespace denoted by
+     * 'fromTenant' and 'fromNamespace'.
      * If not, throw an IllegalArgumentException.
      */
     public void checkAllowedNamespace(String tenant, String namespace, String fromTenant, String fromNamespace) {
@@ -432,26 +456,31 @@ public class FlowService {
     }
 
     /**
-     * Return true if the namespace is allowed from all the namespace in the 'fromTenant' tenant.
-     * As namespace restriction is an EE feature, this will always return true in OSS.
+     * Return true if the namespace is allowed from all the namespace in the
+     * 'fromTenant' tenant.
+     * As namespace restriction is an EE feature, this will always return true in
+     * OSS.
      */
     public boolean areAllowedAllNamespaces(String tenant, String fromTenant, String fromNamespace) {
         return true;
     }
 
     /**
-     * Check that the namespace is allowed from all the namespace in the 'fromTenant' tenant.
+     * Check that the namespace is allowed from all the namespace in the
+     * 'fromTenant' tenant.
      * If not, throw an IllegalArgumentException.
      */
     public void checkAllowedAllNamespaces(String tenant, String fromTenant, String fromNamespace) {
         if (!areAllowedAllNamespaces(tenant, fromTenant, fromNamespace)) {
-            throw new IllegalArgumentException("All namespaces are not allowed, you should either filter on a namespace or configure all namespaces to allow your namespace.");
+            throw new IllegalArgumentException(
+                    "All namespaces are not allowed, you should either filter on a namespace or configure all namespaces to allow your namespace.");
         }
     }
 
     /**
      * Gets the executable flow for the given namespace, id, and revision.
-     * Warning: this method bypasses ACL so someone with only execution right can create a flow execution
+     * Warning: this method bypasses ACL so someone with only execution right can
+     * create a flow execution
      *
      * @param tenant    Rhe tenant ID.
      * @param namespace The flow's namespace.
@@ -461,7 +490,8 @@ public class FlowService {
      * @throws NoSuchElementException if the requested flow does not exist.
      * @throws IllegalStateException  if the requested flow is not executable.
      */
-    public Flow getFlowIfExecutableOrThrow(final String tenant, final String namespace, final String id, final Optional<Integer> revision) {
+    public Flow getFlowIfExecutableOrThrow(final String tenant, final String namespace, final String id,
+            final Optional<Integer> revision) {
         if (flowRepository.isEmpty()) {
             throw noRepositoryException();
         }
@@ -476,13 +506,14 @@ public class FlowService {
             throw new IllegalStateException("Requested Flow is disabled.");
         }
 
-        if (flow instanceof FlowWithException fwe ) {
+        if (flow instanceof FlowWithException fwe) {
             throw new IllegalStateException("Requested Flow is not valid. Error: " + fwe.getException());
         }
         return flow;
     }
 
     private IllegalStateException noRepositoryException() {
-        return new IllegalStateException("No flow repository found. Make sure the `kestra.repository.type` property is set.");
+        return new IllegalStateException(
+                "No flow repository found. Make sure the `kestra.repository.type` property is set.");
     }
 }

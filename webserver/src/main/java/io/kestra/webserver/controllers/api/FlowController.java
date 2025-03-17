@@ -599,7 +599,14 @@ public class FlowController {
 
                     validateConstraintViolationBuilder.deprecationPaths(flowService.deprecationPaths(flowParse));
                     validateConstraintViolationBuilder.warnings(flowService.warnings(flowParse));
-                    validateConstraintViolationBuilder.infos(flowService.relocations(flow).stream().map(relocation -> relocation.from() + " is replaced by " + relocation.to()).toList());
+                    List<String> relocationsList = flowService.relocations(flow)
+                        .stream()
+                        .map(relocation -> relocation.from()
+                            + " is replaced by " + relocation.to())
+                        .toList();
+                    validateConstraintViolationBuilder.infos(Stream
+                        .concat(relocationsList.stream(), flowService.missingDefaults(flowParse).stream())
+                        .toList());
                     validateConstraintViolationBuilder.flow(flowParse.getId());
                     validateConstraintViolationBuilder.namespace(flowParse.getNamespace());
 

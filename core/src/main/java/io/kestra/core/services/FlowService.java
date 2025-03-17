@@ -156,6 +156,15 @@ public class FlowService {
         }
     }
 
+    public List<String> missingDefaults(Flow flow) {
+        return flow.getInputs()
+            .stream()
+            .filter(input -> input.getDefaults() == null)
+            .map(input -> "Input '" + input.getId()
+                + "' is missing a default value")
+            .toList();
+    }
+
     // check if subflow is present in given namespace
     public void checkValidSubflows(Flow flow, String tenantId) {
         List<io.kestra.plugin.core.flow.Subflow> subFlows = ListUtils.emptyOnNull(flow.getTasks()).stream()

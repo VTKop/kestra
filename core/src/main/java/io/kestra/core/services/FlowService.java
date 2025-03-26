@@ -159,7 +159,7 @@ public class FlowService {
 
     public List<String> missingDefaults(Flow flow) {
 
-        // Step 1: Find inputs without defaults
+        // Find inputs without defaults
         Set<String> inputsWithoutDefaults = flow.getInputs().stream()
                 .filter(input -> input.getDefaults() == null)
                 .map(input -> input.getId())
@@ -170,7 +170,7 @@ public class FlowService {
             return List.of();
         }
     
-        // Step 2: Find schedules with missing inputs or null inputs
+        // Find schedules with missing inputs or null inputs
         return flow.getTriggers().stream()
                 .filter(trigger -> trigger instanceof Schedule)
                 .map(trigger -> (Schedule) trigger)

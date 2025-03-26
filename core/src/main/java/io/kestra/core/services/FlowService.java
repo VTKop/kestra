@@ -14,6 +14,7 @@ import io.kestra.core.repositories.FlowRepositoryInterface;
 import io.kestra.core.serializers.JacksonMapper;
 import io.kestra.core.serializers.YamlParser;
 import io.kestra.core.utils.ListUtils;
+import io.kestra.plugin.core.trigger.Schedule;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import jakarta.validation.ConstraintViolation;
@@ -157,12 +158,34 @@ public class FlowService {
     }
 
     public List<String> missingDefaults(Flow flow) {
-        return flow.getInputs()
-            .stream()
-            .filter(input -> input.getDefaults() == null)
-            .map(input -> "Input '" + input.getId()
-                + "' is missing a default value")
-            .toList();
+
+        // Step 1: Find inputs without defaults
+        Set<String> inputsWithoutDefaults = flow.getInputs().stream()
+                .filter(input -> input.getDefaults() == null)
+                .map(input -> input.getId())
+                .collect(Collectors.toSet());
+
+        // If all inputs have defaults, no need to check schedules
+        if (inputsWithoutDefaults.isEmpty()) {
+            return List.of();
+        }
+    
+        // Step 2: Find schedules with missing inputs or null inputs
+        return flow.getTriggers().stream()
+                .filter(trigger -> trigger instanceof Schedule)
+                .map(trigger -> (Schedule) trigger)
+                .filter(schedule -> {
+                    Map<String, Object> scheduleInputs = schedule.getInputs();
+                    return scheduleInputs == null || inputsWithoutDefaults.stream().anyMatch(inputId -> !scheduleInputs.containsKey(inputId));
+                })
+                .map(schedule -> {
+                    Map<String, Object> scheduleInputs = Optional.ofNullable(schedule.getInputs()).orElse(Collections.emptyMap());
+                    String missingInputs = inputsWithoutDefaults.stream()
+                            .filter(inputId -> !scheduleInputs.containsKey(inputId))
+                            .collect(Collectors.joining(", "));
+                    return "Schedule '" + schedule.getId() + "' is missing inputs for: " + missingInputs;
+                })
+                .toList();
     }
 
     // check if subflow is present in given namespace

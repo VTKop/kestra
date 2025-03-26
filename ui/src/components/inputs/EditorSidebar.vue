@@ -117,17 +117,6 @@
             v-loading="items === undefined"
             :props="{class: 'node', isLeaf: 'leaf'}"
             class="mt-3"
-            @node-click="
-                (data, node) =>
-                    data.leaf
-                        ? changeOpenedTabs({
-                            action: 'open',
-                            name: data.fileName,
-                            extension: data.fileName.split('.').pop(),
-                            path: getPath(node),
-                        })
-                        : undefined
-            "
             @node-drag-start="
                 nodeBeforeDrag = {
                     parent: $event.parent.data.id,
@@ -153,7 +142,7 @@
                     trigger="contextmenu"
                     class="w-100"
                 >
-                    <el-row justify="space-between" class="w-100">
+                    <el-row justify="space-between" class="w-100" @click="(event) => handleNodeClick(data, node, event)">
                         <el-col class="w-100">
                             <TypeIcon
                                 :name="data.fileName"
@@ -413,6 +402,8 @@
                 nodeBeforeDrag: undefined,
                 searchResults: [],
                 tabContextMenu: {visible: false, x: 0, y: 0},
+                selectedFiles: [],
+                lastClickedIndex: null,
             };
         },
         computed: {
@@ -443,6 +434,53 @@
             },
         },
         methods: {
+            flattenTree(items, parentPath = "") {
+                const result = [];
+
+                for (const item of items) {
+                    const fullPath = `${parentPath}${item.fileName}`;
+                    result.push({path: fullPath, fileName: item.fileName});
+
+                    if (item.children && item.children.length > 0) {
+                        result.push(...this.flattenTree(item.children, `${fullPath}/`));
+                    }
+                }
+
+                return result.filter(i => i.path); // Optional
+            },
+
+            handleNodeClick(data, node, event) {
+                const path = this.getPath(node);
+                const flatList = this.flattenTree(this.items);
+                const currentIndex = flatList.findIndex(item => item.path === path);
+
+                if (event && event.shiftKey) {
+
+                    const start = Math.min(this.lastClickedIndex, currentIndex);
+                    const end = Math.max(this.lastClickedIndex, currentIndex);
+
+                    this.selectedFiles = flatList.slice(start, end+1).map(item => item.path);
+
+                    console.log(this.selectedFiles)
+                    this.lastClickedIndex = currentIndex
+
+                } else {
+                    // Normal single-click open behavior
+                    console.log("no")
+                    if (data.leaf) {
+                        this.changeOpenedTabs({
+                            action: "open",
+                            name: data.fileName,
+                            extension: data.fileName.split(".").pop(),
+                            path,
+                        });
+                    }
+
+                    this.selectedFiles = [path]; // reset selection
+                    this.lastClickedIndex = currentIndex
+                }
+            },  
+
             ...mapMutations("editor", [
                 "toggleExplorerVisibility",
                 "changeOpenedTabs",

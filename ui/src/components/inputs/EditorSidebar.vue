@@ -142,7 +142,12 @@
                     trigger="contextmenu"
                     class="w-100"
                 >
-                    <el-row justify="space-between" class="w-100" @click="(event) => handleNodeClick(data, node, event)">
+                    <el-row
+                        justify="space-between"
+                        class="w-100"
+                        :class="{'selected-node': selectedNodes.includes(data.id)}"
+                        @click="(event) => handleNodeClick(data, node, event)"
+                    >
                         <el-col class="w-100">
                             <TypeIcon
                                 :name="data.fileName"
@@ -187,7 +192,7 @@
                                     )
                                 }}
                             </el-dropdown-item>
-                            <el-dropdown-item @click="confirmRemove(node)">
+                            <el-dropdown-item @click="removeSelectedFiles()">
                                 {{
                                     $t(
                                         `namespace files.delete.${
@@ -402,8 +407,9 @@
                 nodeBeforeDrag: undefined,
                 searchResults: [],
                 tabContextMenu: {visible: false, x: 0, y: 0},
-                selectedFiles: [],
-                lastClickedIndex: null,
+                selectedFiles: [], // Tracks selected file paths
+                selectedNodes: [], // Tracks selected node IDs
+                lastClickedIndex: null, // Tracks the last clicked file index
             };
         },
         computed: {
@@ -433,13 +439,22 @@
                 return extractPaths(undefined, this.items);
             },
         },
+
+        mounted() {
+            window.addEventListener("keydown", this.handleKeydown);
+        },
+
+        beforeUnmount() {
+            window.removeEventListener("keydown", this.handleKeydown);
+        },
+
         methods: {
             flattenTree(items, parentPath = "") {
                 const result = [];
 
                 for (const item of items) {
                     const fullPath = `${parentPath}${item.fileName}`;
-                    result.push({path: fullPath, fileName: item.fileName});
+                    result.push({path: fullPath, fileName: item.fileName, id: item.id});
 
                     if (item.children && item.children.length > 0) {
                         result.push(...this.flattenTree(item.children, `${fullPath}/`));
@@ -449,22 +464,29 @@
                 return result.filter(i => i.path); // Optional
             },
 
+            handleKeydown(event) {
+                if (event.key === "Delete" && this.selectedFiles.length > 0) {
+                    this.removeSelectedFiles();
+                }
+            },
+
             handleNodeClick(data, node, event) {
-                const path = this.getPath(node);
-                const flatList = this.flattenTree(this.items);
+                const path = this.getPath(node); // Get the full path of the clicked node
+                const flatList = this.flattenTree(this.items); // Flatten the tree structure
                 const currentIndex = flatList.findIndex(item => item.path === path);
 
-                if (event && event.shiftKey) {
-
+                if (event && event.shiftKey && this.lastClickedIndex !== null) {
+                    // Handle shift-click for range selection
                     const start = Math.min(this.lastClickedIndex, currentIndex);
                     const end = Math.max(this.lastClickedIndex, currentIndex);
 
-                    this.selectedFiles = flatList.slice(start, end+1).map(item => item.path);
-
-                    console.log(this.selectedFiles)
-                    this.lastClickedIndex = currentIndex
-
+                    this.selectedFiles = flatList.slice(start, end + 1).map(item => item.path);
+                    this.selectedNodes = flatList.slice(start, end + 1).map(item => item.id);
                 } else {
+                    // Handle single-click selection
+                    this.selectedFiles = [path];
+                    this.selectedNodes = [node.data.id];
+                    this.lastClickedIndex = currentIndex;
                     // Normal single-click open behavior
                     console.log("no")
                     if (data.leaf) {
@@ -472,14 +494,84 @@
                             action: "open",
                             name: data.fileName,
                             extension: data.fileName.split(".").pop(),
-                            path,
                         });
                     }
-
-                    this.selectedFiles = [path]; // reset selection
-                    this.lastClickedIndex = currentIndex
                 }
-            },  
+
+                console.log("Selected files:", this.selectedFiles); // Debugging
+                console.log("Selected nodes:", this.selectedNodes); // Debugging
+            },
+            
+            async removeSelectedFiles() {
+                if (this.selectedFiles.length === 0) {
+                    this.$toast().error("No files selected for deletion.");
+                    return;
+                }
+
+                // Get all selected nodes using the custom findNodeByPath function
+                const nodes = this.selectedFiles.map((filePath) => {
+                    console.log("Looking for node with path:", filePath); // Debugging
+                    const node = this.findNodeByPath(filePath);
+                    console.log("Found node:", node); // Debugging
+                    return node;
+                });
+
+                // Filter out any null nodes (in case some file paths are invalid)
+                const validNodes = nodes.filter((node) => node !== null);
+
+                // Trigger the confirmation dialog for all selected nodes
+                this.confirmRemove(validNodes);
+            },
+
+            findNodeByPath(path, items = this.items, parentPath = "") {
+                for (const item of items) {
+                    const fullPath = `${parentPath}${item.fileName}`;
+
+                    if (fullPath === path) {
+                        return item; // Return the matching node
+                    }
+
+                    if (item.children && item.children.length > 0) {
+                        const foundNode = this.findNodeByPath(
+                            path,
+                            item.children,
+                            `${fullPath}/`
+                        );
+                        if (foundNode) {
+                            return foundNode; // Return the node if found in children
+                        }
+                    }
+                }
+
+                return null; // Return null if no matching node is found
+            },
+
+            removeNodeFromTree(node, items = this.items) {
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i] === node) {
+                        console.log("Removing node:", node); // Debugging
+                        items.splice(i, 1); // Remove the node from the array
+
+                        // Force the tree to refresh
+                        const tempItems = [...this.items];
+                        this.items = [];
+                        this.$nextTick(() => {
+                            this.items = tempItems;
+                        });
+
+                        return true;
+                    }
+
+                    if (items[i].children && items[i].children.length > 0) {
+                        const removed = this.removeNodeFromTree(node, items[i].children);
+                        if (removed) {
+                            return true;
+                        }
+                    }
+                }
+
+                return false; // Return false if the node is not found
+            },
 
             ...mapMutations("editor", [
                 "toggleExplorerVisibility",
@@ -925,30 +1017,55 @@
                     this.dialog = {...DIALOG_DEFAULTS};
                 }
             },
-            confirmRemove(node) {
-                this.confirmation = {visible: true, node};
+            confirmRemove(nodes) {
+                if (Array.isArray(nodes)) {
+                    // Handle multiple nodes
+                    this.confirmation = {
+                        visible: true,
+                        nodes, // Store all selected nodes
+                    };
+                } else {
+                    // Handle a single node
+                    this.confirmation = {
+                        visible: true,
+                        nodes: [nodes], // Wrap the single node in an array
+                    };
+                }
             },
             async removeItem() {
-                const {
-                    node,
-                    node: {data},
-                } = this.confirmation;
+                if (!this.confirmation.nodes || this.confirmation.nodes.length === 0) {
+                    this.$toast().error("No files selected for deletion.");
+                    return;
+                }
 
-                await this.deleteFileDirectory({
-                    namespace: this.currentNS ?? this.$route.params.namespace,
-                    path: this.getPath(node),
-                    name: data.fileName,
-                    type: data.type,
-                });
 
-                this.$refs.tree.remove(data.id);
+                for (const node of this.confirmation.nodes) {
+                    try {
+                        // Call the backend to delete the file
+                        await this.deleteFileDirectory({
+                            namespace: this.currentNS ?? this.$route.params.namespace,
+                            path: this.getPath(node), // Ensure getPath works with raw nodes
+                            name: node.fileName,
+                            type: node.type,
+                        });
 
-                this.changeOpenedTabs({
-                    action: "close",
-                    name: data.fileName,
-                });
+                        // Remove the node from the tree
+                        this.removeNodeFromTree(node);
 
-                this.confirmation = {visible: false, node: undefined};
+                        // Close the file tab if it's open
+                        this.changeOpenedTabs({
+                            action: "close",
+                            name: node.fileName,
+                        });
+                    } catch (error) {
+                        console.error(`Failed to delete file: ${node.fileName}`, error);
+                        this.$toast().error(`Failed to delete file: ${node.fileName}`);
+                    }
+                }
+
+                // Clear the confirmation state after deletion
+                this.confirmation = {visible: false, nodes: []};
+                this.$toast().success("Selected files deleted successfully.");
             },
             deleteKeystroke() {
                 if (this.$refs.tree.getCurrentNode()) {
@@ -1231,6 +1348,9 @@
             html.dark &{
                 background-color: $primary;
             }
+        }
+        .selected-node {
+            background-color: var(--ks-content-link-hover);
         }
     }
 }

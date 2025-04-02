@@ -116,16 +116,7 @@
             v-loading="items === undefined"
             :props="{class: 'node', isLeaf: 'leaf'}"
             class="mt-3"
-            @node-click="
-                (data, node) =>
-                    data.leaf
-                        ? openTab({
-                            name: data.fileName,
-                            extension: data.fileName.split('.').pop(),
-                            path: getPath(node),
-                        })
-                        : undefined
-            "
+            @node-click="handleNodeClick"
             @node-drag-start="
                 nodeBeforeDrag = {
                     parent: $event.parent.data.id,
@@ -154,7 +145,7 @@
                         justify="space-between"
                         class="w-100"
                         :class="{'selected-node': selectedNodes.includes(data.id)}"
-                        @click="(event) => handleNodeClick(data, node, event)"
+                        @click="(event) => handleNodeClick(data, node)"
                     >
                         <el-col class="w-100">
                             <TypeIcon
@@ -499,12 +490,12 @@
                 }
             },
 
-            handleNodeClick(data, node, event) {
+            handleNodeClick(data, node) {
                 const path = this.getPath(node);
                 const flatList = this.flattenTree(this.items);
                 const currentIndex = flatList.findIndex(item => item.path === path);
 
-                if (event && event.shiftKey && this.lastClickedIndex !== null) {
+                if (window.event.shiftKey && this.lastClickedIndex !== null) {
                     // Handle shift-click for range selection
                     const start = Math.min(this.lastClickedIndex, currentIndex);
                     const end = Math.max(this.lastClickedIndex, currentIndex);

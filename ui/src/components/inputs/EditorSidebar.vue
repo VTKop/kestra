@@ -133,7 +133,6 @@
                 }
             "
             @node-drop="nodeMoved"
-            @keydown.delete.prevent="deleteKeystroke"
         >
             <template #empty>
                 <div class="m-4 empty">
@@ -491,7 +490,7 @@
                     }
                 }
 
-                return result.filter(i => i.path); // Optional
+                return result.filter(i => i.path);
             },
 
             handleKeydown(event) {
@@ -501,8 +500,8 @@
             },
 
             handleNodeClick(data, node, event) {
-                const path = this.getPath(node); // Get the full path of the clicked node
-                const flatList = this.flattenTree(this.items); // Flatten the tree structure
+                const path = this.getPath(node);
+                const flatList = this.flattenTree(this.items);
                 const currentIndex = flatList.findIndex(item => item.path === path);
 
                 if (event && event.shiftKey && this.lastClickedIndex !== null) {
@@ -517,8 +516,6 @@
                     this.selectedFiles = [path];
                     this.selectedNodes = [node.data.id];
                     this.lastClickedIndex = currentIndex;
-                    // Normal single-click open behavior
-                    console.log("no")
                     if (data.leaf) {
                         this.openTab({
                             name: data.fileName,
@@ -527,21 +524,15 @@
                         });
                     }
                 }
-
-                console.log("Selected files:", this.selectedFiles); // Debugging
-                console.log("Selected nodes:", this.selectedNodes); // Debugging
             },
             
             async removeSelectedFiles() {
-                // Get all selected nodes using the custom findNodeByPath function
+            
                 const nodes = this.selectedFiles.map((filePath) => {
-                    console.log("Looking for node with path:", filePath); // Debugging
                     const node = this.findNodeByPath(filePath);
-                    console.log("Found node:", node); // Debugging
                     return node;
                 });
 
-                // Trigger the confirmation dialog for all selected nodes
                 this.confirmRemove(nodes);
             },
 
@@ -550,7 +541,7 @@
                     const fullPath = `${parentPath}${item.fileName}`;
 
                     if (fullPath === path) {
-                        return item; // Return the matching node
+                        return item;
                     }
 
                     if (item.children && item.children.length > 0) {
@@ -560,12 +551,12 @@
                             `${fullPath}/`
                         );
                         if (foundNode) {
-                            return foundNode; // Return the node if found in children
+                            return foundNode;
                         }
                     }
                 }
 
-                return null; // Return null if no matching node is found
+                return null;
             },
             sorted(items) {
                 return items.sort((a, b) => {
@@ -996,35 +987,28 @@
             },
             confirmRemove(nodes) {
                 if (Array.isArray(nodes)) {
-                    // Handle multiple nodes
                     this.confirmation = {
                         visible: true,
-                        nodes, // Store all selected nodes
+                        nodes,
                     };
                 } else {
-                    // Handle a single node
                     this.confirmation = {
                         visible: true,
-                        nodes: [nodes], // Wrap the single node in an array
+                        nodes: [nodes],
                     };
                 }
             },
             async removeItem() {
-                console.log(this.confirmation.nodes);
                 for (const node of this.confirmation.nodes) {
                     try {
-                        // Call the backend to delete the file
                         await this.deleteFileDirectory({
                             namespace: this.currentNS ?? this.$route.params.namespace,
-                            path: this.getPath(node), // Ensure getPath works with raw nodes
+                            path: this.getPath(node),
                             name: node.fileName,
                             type: node.type,
                         });
 
-                        // Remove the node from the tree using its ID
                         this.$refs.tree.remove(node.id);
-
-                        // Close the file tab if it's open
                         this.closeTab({
                             name: node.fileName,
                         });
@@ -1037,15 +1021,6 @@
                 // Clear the confirmation state after deletion
                 this.confirmation = {visible: false, nodes: []};
                 this.$toast().success("Selected files deleted successfully.");
-            },
-            deleteKeystroke() {
-                if (this.$refs.tree.getCurrentNode()) {
-                    this.confirmRemove(
-                        this.$refs.tree.getNode(
-                            this.$refs.tree.getCurrentNode().id,
-                        ),
-                    );
-                }
             },
             async addFolder(folder, creation) {
                 const {fileName} = folder
@@ -1143,9 +1118,7 @@
             },
             getPath(name) {
                 const nodes = this.$refs.tree.getNodePath(name);
-                const path = nodes.map((obj) => obj.fileName).join("/");
-                console.log("Generated path:", path); // Debugging
-                return path;
+                return nodes.map((obj) => obj.fileName).join("/");
             },
             copyPath(name) {
                 const path = this.getPath(name);

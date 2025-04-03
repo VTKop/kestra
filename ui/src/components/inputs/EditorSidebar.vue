@@ -124,6 +124,7 @@
                 }
             "
             @node-drop="nodeMoved"
+            @keydown.delete.prevent="removeSelectedFiles"
         >
             <template #empty>
                 <div class="m-4 empty">
@@ -299,21 +300,17 @@
 
         <el-dialog
             v-model="confirmation.visible"
-            :title="
-                Array.isArray(confirmation.node?.data?.children)
-                    ? $t('namespace files.dialog.folder_deletion')
-                    : $t('namespace files.dialog.file_deletion')
-            "
+            :title="confirmationTitle"
             width="500"
             @keydown.enter.prevent="removeItem()"
         >
             <span class="py-3">
                 {{
-                    Array.isArray(confirmation.node?.data?.children)
-                        ? $t(
-                            "namespace files.dialog.folder_deletion_description",
-                        )
-                        : $t("namespace files.dialog.file_deletion_description")
+                    confirmation.nodes.length > 1
+                        ? $t("namespace files.dialog.file_deletion_description")
+                        : confirmation.nodes[0]?.type === "Directory"
+                            ? $t("namespace files.dialog.folder_deletion_description")
+                            : $t("namespace files.dialog.file_deletion_description")
                 }}
             </span>
             <template #footer>
@@ -438,16 +435,23 @@
 
                 return extractPaths(undefined, this.items);
             },
-        },
+            confirmationTitle() {
+                if (!this.confirmation.nodes || this.confirmation.nodes.length === 0) {
+                    return ""; // Return an empty string if no nodes are selected
+                }
 
-        mounted() {
-            window.addEventListener("keydown", this.handleKeydown);
-        },
+                if (this.confirmation.nodes.length > 1) {
+                    // Bulk deletion title
+                    return this.$t("namespace files.dialog.file_deletion");
+                }
 
-        beforeUnmount() {
-            window.removeEventListener("keydown", this.handleKeydown);
+                // Single node deletion title
+                const node = this.confirmation.nodes[0];
+                return node.type === "Directory"
+                    ? this.$t("namespace files.dialog.folder_deletion")
+                    : this.$t("namespace files.dialog.file_deletion");
+            },
         },
-
         methods: {
             ...mapMutations("editor", [
                 "toggleExplorerVisibility",
@@ -483,13 +487,6 @@
 
                 return result.filter(i => i.path);
             },
-
-            handleKeydown(event) {
-                if (event.key === "Delete" && this.selectedFiles.length > 0) {
-                    this.removeSelectedFiles();
-                }
-            },
-
             handleNodeClick(data, node) {
                 const path = this.getPath(node);
                 const flatList = this.flattenTree(this.items);
@@ -1300,7 +1297,12 @@
             }
         }
         .selected-node {
-            background-color: var(--ks-content-link-hover);
+            background-color: var(--el-color-primary-light-9); /* Default light mode color */
+            html.dark & {
+                background-color: $primary; /* Dark mode color */
+            }
+            border-radius: 4px; /* Optional: Add rounded corners */
+            min-width: fit-content;
         }
     }
 }

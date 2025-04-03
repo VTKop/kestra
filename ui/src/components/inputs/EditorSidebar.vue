@@ -1131,6 +1131,17 @@
                 this.tabContextMenu.visible = false;
                 document.removeEventListener("click", this.hideTabContextMenu);
             },
+            clearSelection() {
+                this.selectedFiles = [];
+                this.selectedNodes = [];
+                this.lastClickedIndex = null;
+            },
+        },
+        mounted() {
+            document.addEventListener("click", this.clearSelection);
+        },
+        beforeUnmount() {
+            document.removeEventListener("click", this.clearSelection);
         },
         watch: {
             flow: {

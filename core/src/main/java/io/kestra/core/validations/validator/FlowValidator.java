@@ -7,6 +7,7 @@ import io.kestra.core.models.tasks.ExecutableTask;
 import io.kestra.core.models.tasks.Task;
 import io.kestra.core.utils.ListUtils;
 import io.kestra.core.validations.FlowValidation;
+import io.kestra.plugin.core.trigger.Schedule;
 import io.micronaut.core.annotation.AnnotationValue;
 import io.micronaut.core.annotation.Introspected;
 import io.micronaut.core.annotation.NonNull;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static io.kestra.core.models.Label.READ_ONLY;
 import static io.kestra.core.models.Label.SYSTEM_PREFIX;
@@ -76,6 +78,33 @@ public class FlowValidator implements ConstraintValidator<FlowValidation, Flow> 
         duplicateIds = getDuplicates(ListUtils.emptyOnNull(value.getOutputs()).stream().map(Data::getId).toList());
         if (!duplicateIds.isEmpty()) {
             violations.add("Duplicate output with name [" + String.join(", ", duplicateIds) + "]");
+        }
+
+        if (!ListUtils.emptyOnNull(value.getTriggers()).isEmpty()
+                && !ListUtils.emptyOnNull(value.getInputs()).isEmpty()) {
+            // Find inputs without defaults
+            Set<String> inputsWithoutDefaults = value.getInputs().stream()
+                    .filter(input -> input.getDefaults() == null)
+                    .map(Data::getId)
+                    .collect(Collectors.toSet());
+
+            // Find schedules with missing inputs or null inputs
+            value.getTriggers().stream()
+                    .filter(Schedule.class::isInstance)
+                    .map(Schedule.class::cast)
+                    .filter(schedule -> {
+                        Map<String, Object> scheduleInputs = schedule.getInputs();
+                        return scheduleInputs == null || inputsWithoutDefaults.stream()
+                                .anyMatch(inputId -> !scheduleInputs.containsKey(inputId));
+                    })
+                    .forEach(schedule -> {
+                        Map<String, Object> scheduleInputs = Optional.ofNullable(schedule.getInputs())
+                                .orElse(Collections.emptyMap());
+                        String missingInputs = inputsWithoutDefaults.stream()
+                                .filter(inputId -> !scheduleInputs.containsKey(inputId))
+                                .collect(Collectors.joining(" | "));
+                        violations.add("Schedule '" + schedule.getId() + "' is missing inputs for: " + missingInputs);
+                    });
         }
 
         // system labels
